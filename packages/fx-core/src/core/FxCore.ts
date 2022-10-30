@@ -29,6 +29,7 @@ import {
   ProjectSettingsV3,
   QTreeNode,
   Result,
+  SettingsFolderName,
   Stage,
   StatesFolderName,
   Tools,
@@ -51,6 +52,7 @@ import {
   ExistingTabOptionItem,
   SingleSignOnOptionItem,
   ComponentNames,
+  AadConstants,
 } from "../component/constants";
 import { CallbackRegistry } from "./callback";
 import { checkPermission, grantPermission, listCollaborator } from "./collaborator";
@@ -137,6 +139,7 @@ import "../component/driver/deploy/spfx/deployDriver";
 import "../component/driver/script/dotnetBuildDriver";
 import "../component/driver/script/npmBuildDriver";
 import "../component/driver/script/npxBuildDriver";
+
 export class FxCore implements v3.ICore {
   tools: Tools;
   isFromSample?: boolean;
@@ -371,7 +374,10 @@ export class FxCore implements v3.ICore {
     inputs.stage = Stage.deployAad;
     const updateAadClient = Container.get("aadApp/update") as any;
     // In V3, the aad.template.json exist at .fx folder, and output to root build folder.
-    const manifestTemplatePath: string = path.join(inputs.projectPath!, ".fx", "aad.template.json");
+    const manifestTemplatePath: string = path.join(
+      inputs.projectPath!,
+      AadConstants.DefaultTemplateFileName
+    );
     if (!(await fs.pathExists(manifestTemplatePath))) {
       return err(new NoAadManifestExistError(manifestTemplatePath));
     }
@@ -529,35 +535,15 @@ export class FxCore implements v3.ICore {
           projectPath: context.projectPath!,
           platform: inputs.platform,
         };
-        await envUtil.readEnv(context.projectPath!, func.params.env);
+        // await envUtil.readEnv(context.projectPath!, func.params.env);
         res = await driver.run(args, driverContext);
       } else {
         const component = Container.get("app-manifest") as any;
         res = await component.validate(context, inputs as InputsWithProjectPath);
       }
     } else if (func.method === "buildPackage") {
-      if (isV3Enabled()) {
-        const driver: CreateAppPackageDriver = Container.get("teamsApp/createAppPackage");
-        const args: CreateAppPackageArgs = {
-          manifestTemplatePath: func.params.manifestTemplatePath,
-          outputZipPath: func.params.outputZipPath,
-          outputJsonPath: func.params.outputJsonPath,
-        };
-        const driverContext: DriverContext = {
-          azureAccountProvider: context.tokenProvider!.azureAccountProvider,
-          m365TokenProvider: context.tokenProvider!.m365TokenProvider,
-          ui: context.userInteraction,
-          logProvider: context.logProvider,
-          telemetryReporter: context.telemetryReporter,
-          projectPath: context.projectPath!,
-          platform: inputs.platform,
-        };
-        await envUtil.readEnv(context.projectPath!, func.params.env);
-        res = await driver.run(args, driverContext);
-      } else {
-        const component = Container.get("app-manifest") as any;
-        res = await component.build(context, inputs as InputsWithProjectPath);
-      }
+      const component = Container.get("app-manifest") as any;
+      res = await component.build(context, inputs as InputsWithProjectPath);
     } else if (func.method === "updateManifest") {
       const component = Container.get("app-manifest") as any;
       res = await component.deploy(context, inputs as InputsWithProjectPath);
