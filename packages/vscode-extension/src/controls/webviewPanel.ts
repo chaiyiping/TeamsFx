@@ -233,6 +233,8 @@ export class WebviewPanel {
         return localize("teamstoolkit.webview.surveyPageTitle");
       case PanelType.RespondToCardActions:
         return localize("teamstoolkit.tutorials.cardActionResponse.label.new");
+      case PanelType.PrepareM365Account:
+        return localize("teamstoolkit.webview.preparem365PageTitle");
     }
   }
 
