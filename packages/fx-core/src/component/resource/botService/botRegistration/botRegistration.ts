@@ -12,7 +12,8 @@ import {
 } from "@microsoft/teamsfx-api";
 import { getLocalizedString } from "../../../../common/localizeUtils";
 import { GraphScopes } from "../../../../common/tools";
-import { CreateAADAppError } from "../errors";
+import { IBotRegistration } from "../appStudio/interfaces/IBotRegistration";
+import { MissingRequiredArgumentsError } from "../errors";
 import { logMessageKeys } from "./constants";
 import { GraphClient } from "./graphClient";
 
@@ -29,16 +30,18 @@ export interface BotAadCredentials {
 export class Constants {
   public static readonly BOT_REGISTRATION: string = "BotRegistration";
   public static readonly CREATE_BOT_REGISTRATION: string = "createBotRegistration";
+  public static readonly UPDATE_BOT_REGISTRATION: string = "updateBotRegistration";
   public static readonly UPDATE_MESSAGE_ENDPOINT: string = "updateMessageEndpoint";
   public static readonly MSI_FOR_BOT: string = "MSI Support for Bot";
 }
 
 export class BotRegistration {
-  public async createBotAadApp(
-    m365TokenProvider: M365TokenProvider,
-    aadDisplayName: string,
+  // Create authentication (AAD App, MSI) for Bot.
+  public async createBotAuth(
+    botAuthType: BotAuthType,
+    aadDisplayName?: string,
     botConfig?: BotAadCredentials,
-    botAuthType: BotAuthType = BotAuthType.AADApp,
+    m365TokenProvider?: M365TokenProvider,
     logProvider?: LogProvider
   ): Promise<Result<BotAadCredentials, FxError>> {
     logProvider?.info(getLocalizedString(logMessageKeys.startCreateBotAadApp));
@@ -48,9 +51,13 @@ export class BotRegistration {
         logProvider?.info(getLocalizedString(logMessageKeys.skipCreateBotAadApp));
         return ok(botConfig);
       } else {
+        // Check necessary parameters.
+        if (!m365TokenProvider || !aadDisplayName) {
+          throw new MissingRequiredArgumentsError();
+        }
         // Create a new bot aad app.
         // Prepare graph token.
-        const graphTokenRes = await m365TokenProvider.getAccessToken({
+        const graphTokenRes = await m365TokenProvider?.getAccessToken({
           scopes: GraphScopes,
         });
 
@@ -78,17 +85,27 @@ export class BotRegistration {
       return err(new NotImplementedError(Constants.BOT_REGISTRATION, Constants.MSI_FOR_BOT));
     }
   }
+
   public async createBotRegistration(
-    m365TokenProvider: M365TokenProvider,
-    aadDisplayName: string,
-    botName: string,
-    botConfig?: BotAadCredentials,
-    isIdFromState?: boolean,
     botAuthType: BotAuthType = BotAuthType.AADApp,
+    botConfig: BotAadCredentials,
+    aadDisplayName?: string,
+    botRegistration?: IBotRegistration, // Used to set metadata (iconUrl, callingEndpoint and so on) along with creation.
+    isIdFromState?: boolean,
+    m365TokenProvider?: M365TokenProvider,
     logProvider?: LogProvider
   ): Promise<Result<BotAadCredentials, FxError>> {
     return err(
       new NotImplementedError(Constants.BOT_REGISTRATION, Constants.CREATE_BOT_REGISTRATION)
+    );
+  }
+
+  public async updateBotRegistration(
+    m365TokenProvider: M365TokenProvider,
+    botRegistration: IBotRegistration
+  ): Promise<Result<undefined, FxError>> {
+    return err(
+      new NotImplementedError(Constants.BOT_REGISTRATION, Constants.UPDATE_BOT_REGISTRATION)
     );
   }
 

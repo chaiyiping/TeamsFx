@@ -7,22 +7,23 @@ import { AppStudioScopes } from "../../../../common/tools";
 import { AppStudioClient } from "../appStudio/appStudioClient";
 import { BotRegistration, BotAuthType, BotAadCredentials } from "./botRegistration";
 import { Messages } from "../messages";
+import { MissingRequiredArgumentsError } from "../errors";
 
 export class LocalBotRegistration extends BotRegistration {
   public async createBotRegistration(
-    m365TokenProvider: M365TokenProvider,
-    aadDisplayName: string,
-    botName: string,
-    botConfig?: BotAadCredentials,
+    botAuthType: BotAuthType,
+    botConfig: BotAadCredentials,
+    aadDisplayName?: string,
+    botRegistration?: IBotRegistration,
     isIdFromState?: boolean,
-    botAuthType: BotAuthType = BotAuthType.AADApp,
+    m365TokenProvider?: M365TokenProvider,
     logProvider?: LogProvider
   ): Promise<Result<BotAadCredentials, FxError>> {
-    const botAadRes = await super.createBotAadApp(
-      m365TokenProvider,
+    const botAadRes = await super.createBotAuth(
+      botAuthType,
       aadDisplayName,
       botConfig,
-      botAuthType,
+      m365TokenProvider,
       logProvider
     );
     if (botAadRes.isErr()) {
@@ -33,6 +34,9 @@ export class LocalBotRegistration extends BotRegistration {
     const botAadCredentials: BotAadCredentials = botAadRes.value;
 
     logProvider?.info(Messages.ProvisioningBotRegistration);
+    if (!m365TokenProvider || !botRegistration) {
+      throw new MissingRequiredArgumentsError();
+    }
     const appStudioTokenRes = await m365TokenProvider.getAccessToken({
       scopes: AppStudioScopes,
     });
@@ -42,17 +46,33 @@ export class LocalBotRegistration extends BotRegistration {
 
     const appStudioToken = appStudioTokenRes.value;
     // Register a new bot registration.
-    const initialBotReg: IBotRegistration = {
-      botId: botAadCredentials.botId,
-      name: botName,
-      description: "",
-      iconUrl: "",
-      messagingEndpoint: "",
-      callingEndpoint: "",
-    };
-    await AppStudioClient.createBotRegistration(appStudioToken, initialBotReg, isIdFromState);
+    await AppStudioClient.createBotRegistration(appStudioToken, botRegistration, isIdFromState);
     logProvider?.info(Messages.SuccessfullyProvisionedBotRegistration);
     return ok(botAadCredentials);
+  }
+
+  public async updateBotRegistration(
+    m365TokenProvider: M365TokenProvider,
+    botRegistration: IBotRegistration
+  ): Promise<Result<undefined, FxError>> {
+    if (!botRegistration.botId) {
+      throw new MissingRequiredArgumentsError();
+    }
+    const appStudioTokenRes = await m365TokenProvider.getAccessToken({
+      scopes: AppStudioScopes,
+    });
+    if (appStudioTokenRes.isErr()) {
+      return err(appStudioTokenRes.error);
+    }
+    const appStudioToken = appStudioTokenRes.value;
+    const remoteBotRegistration = await AppStudioClient.getBotRegistration(
+      appStudioToken,
+      botRegistration.botId
+    );
+
+    botRegistration.callingEndpoint = 
+    await AppStudioClient.updateBotRegistration(appStudioToken, botRegistration);
+    return ok(undefined);
   }
 
   public async updateMessageEndpoint(

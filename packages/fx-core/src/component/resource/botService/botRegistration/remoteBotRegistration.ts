@@ -15,7 +15,7 @@ export class RemoteBotRegistration extends BotRegistration {
     botAuthType: BotAuthType = BotAuthType.AADApp,
     logProvider?: LogProvider
   ): Promise<Result<BotAadCredentials, FxError>> {
-    const botAadRes = await super.createBotAadApp(m365TokenProvider, aadDisplayName, botConfig);
+    const botAadRes = await super.createBotAuth(m365TokenProvider, aadDisplayName, botConfig);
     if (botAadRes.isErr()) {
       return err(botAadRes.error);
     }

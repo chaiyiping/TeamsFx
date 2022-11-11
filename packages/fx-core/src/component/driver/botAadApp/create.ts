@@ -14,6 +14,7 @@ import { wrapRun } from "../../utils/common";
 import {
   BotRegistration,
   BotAadCredentials,
+  BotAuthType,
 } from "../../resource/botService/botRegistration/botRegistration";
 import { RemoteBotRegistration } from "../../resource/botService/botRegistration/remoteBotRegistration";
 import { hooks } from "@feathersjs/hooks/lib";
@@ -56,12 +57,12 @@ export class CreateBotAadAppDriver implements StepDriver {
 
       await progressHandler?.next(getLocalizedString(progressBarKeys.creatingBotAadApp));
       const createRes = await botRegistration.createBotRegistration(
-        context.m365TokenProvider,
-        args.name,
-        args.name,
+        BotAuthType.AADApp,
         botConfig,
+        args.name,
+        undefined,
         !botAadAppState.BOT_ID,
-        undefined, // Use default value of BotAuthType.AADApp
+        context.m365TokenProvider,
         context.logProvider
       );
       if (createRes.isErr()) {

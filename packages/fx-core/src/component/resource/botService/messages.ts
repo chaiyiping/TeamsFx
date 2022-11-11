@@ -26,6 +26,11 @@ export class Messages {
     getLocalizedString("plugins.bot.FailedUpdateMessageEndpoint", endpoint),
   ];
 
+  public static readonly MissingRequiredArguments = (): [string, string] => [
+    getDefaultString("plugins.bot.MissingRequiredArguments"),
+    getLocalizedString("plugins.bot.MissingRequiredArguments"),
+  ];
+
   public static readonly FailToCallAppStudioForCheckingAADApp = [
     getDefaultString("plugins.bot.FailToCallAppStudioApi"),
     getLocalizedString("plugins.bot.FailToCallAppStudioApi"),

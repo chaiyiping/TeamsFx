@@ -179,6 +179,17 @@ export class MessageEndpointUpdatingError extends PluginError {
   }
 }
 
+export class MissingRequiredArgumentsError extends PluginError {
+  constructor() {
+    super(
+      ErrorType.SYSTEM,
+      ErrorNames.MISSING_REQUIRED_ARGUMENTS,
+      Messages.MissingRequiredArguments(),
+      [Messages.CheckOutputLogAndTryToFix, Messages.RetryTheCurrentStep]
+    );
+  }
+}
+
 //! context and name are only for telemetry, they may be empty if sendTelemetry is false
 export function wrapError(e: InnerError): FxResult {
   let errorMsg = isErrorWithMessage(e) ? e.message : "";
