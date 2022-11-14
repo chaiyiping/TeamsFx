@@ -146,9 +146,11 @@ describe("env utils", () => {
     if (process.env.SECRET_ABC || process.env.SECRET_ABC === undefined) {
       delete process.env.SECRET_ABC;
     }
+    process.env.ENV_VAR = "1";
     class MyClass {
       async myMethod(inputs: Inputs): Promise<Result<any, FxError>> {
         assert.equal(process.env.SECRET_ABC, decrypted);
+        process.env.ENV_VAR = "2";
         return ok(undefined);
       }
     }
@@ -164,6 +166,7 @@ describe("env utils", () => {
     const res = await my.myMethod(inputs);
     assert.isTrue(res.isOk());
     assert.isUndefined(process.env.SECRET_ABC);
+    assert.equal(process.env.ENV_VAR, "1", "process.env.ENV_VAR should be restored to 1");
 
     const core = new FxCore(tools);
     const getDotEnvRes = await core.getDotEnv(inputs);
@@ -403,12 +406,19 @@ describe("env utils", () => {
   it("dotenvUtil serialize with lines", async () => {
     const parsed = {
       lines: ["#COMMENT", "", "", { key: "KEY2", value: "VALUE2" }],
-      obj: { KEY: "VALUE", KEY2: "VALUE2" },
+      obj: { KEY: "VALUE", KEY2: "VALUE3" },
     };
     const str = dotenvUtil.serialize(parsed);
-    assert.equal(str, "#COMMENT\n\n\nKEY2=VALUE2\nKEY=VALUE");
+    assert.equal(str, "#COMMENT\n\n\nKEY2=VALUE3\nKEY=VALUE");
   });
-
+  it("dotenvUtil serialize with lines case 2", async () => {
+    const parsed = {
+      lines: ["#COMMENT", "", "", { key: "KEY2", value: "VALUE2" }],
+      obj: { KEY3: "VALUE3" },
+    };
+    const str = dotenvUtil.serialize(parsed);
+    assert.equal(str, "#COMMENT\n\n\nKEY2=VALUE2\nKEY3=VALUE3");
+  });
   it("dotenvUtil serialize without lines", async () => {
     const parsed = {
       obj: { KEY: "VALUE", KEY2: "VALUE2" },
