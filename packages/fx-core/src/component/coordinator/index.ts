@@ -10,6 +10,7 @@ import {
   Platform,
   Result,
   SettingsFolderName,
+  UserCancelError,
   UserError,
 } from "@microsoft/teamsfx-api";
 import { merge } from "lodash";
@@ -46,9 +47,16 @@ import {
   MessageExtensionItem,
   CancelError,
   CoordinatorSource,
+  BotOptionItem,
 } from "../constants";
 import { ActionExecutionMW } from "../middleware/actionExecutionMW";
-import { getQuestionsForAddFeatureV3, getQuestionsForProvisionV3 } from "../question";
+import {
+  getQuestionsForAddFeatureV3,
+  getQuestionsForInit,
+  getQuestionsForProvisionV3,
+  InitOptionNo,
+  InitOptionYes,
+} from "../question";
 import * as jsonschema from "jsonschema";
 import * as path from "path";
 import { globalVars } from "../../core/globalVars";
@@ -84,6 +92,7 @@ import { developerPortalScaffoldUtils } from "../developerPortalScaffoldUtils";
 export enum TemplateNames {
   Tab = "non-sso-tab",
   SsoTab = "sso-tab",
+  M365Tab = "m365-tab",
   NotificationRestify = "notification-restify",
   NotificationWebApi = "notification-webapi",
   NotificationHttpTrigger = "notification-http-trigger",
@@ -91,7 +100,9 @@ export enum TemplateNames {
   NotificationHttpTimerTrigger = "notification-http-timer-trigger",
   CommandAndResponse = "command-and-response",
   Workflow = "workflow",
+  DefaultBot = "default-bot",
   MessageExtension = "message-extension",
+  M365MessageExtension = "m365-message-extension",
 }
 
 export const Feature2TemplateName: any = {
@@ -106,9 +117,27 @@ export const Feature2TemplateName: any = {
     TemplateNames.NotificationHttpTimerTrigger,
   [`${CommandAndResponseOptionItem.id}:undefined`]: TemplateNames.CommandAndResponse,
   [`${WorkflowOptionItem.id}:undefined`]: TemplateNames.Workflow,
+  [`${BotOptionItem.id}:undefined`]: TemplateNames.DefaultBot,
   [`${MessageExtensionItem.id}:undefined`]: TemplateNames.MessageExtension,
+  [`${M365SearchAppOptionItem.id}:undefined`]: TemplateNames.M365MessageExtension,
   [`${TabOptionItem.id}:undefined`]: TemplateNames.SsoTab,
   [`${TabNonSsoItem.id}:undefined`]: TemplateNames.Tab,
+  [`${M365SsoLaunchPageOptionItem.id}:undefined`]: TemplateNames.M365Tab,
+};
+
+export const InitTemplateName: any = {
+  ["debug:vsc:tab:true"]: "init-debug-vsc-spfx-tab",
+  ["debug:vsc:tab:false"]: "init-debug-vsc-tab",
+  ["debug:vs:tab:true"]: "init-debug-vs-spfx-tab",
+  ["debug:vs:tab:false"]: "init-debug-vs-tab",
+  ["debug:vsc:bot:undefined"]: "init-debug-vsc-bot",
+  ["debug:vs:bot:undefined"]: "init-debug-vs-bot",
+  ["infra:vsc:tab:true"]: "init-infra-vsc-spfx-tab",
+  ["infra:vsc:tab:false"]: "init-infra-vsc-tab",
+  ["infra:vs:tab:true"]: "init-infra-vs-spfx-tab",
+  ["infra:vs:tab:false"]: "init-infra-vs-tab",
+  ["infra:vsc:bot:undefined"]: "init-infra-vsc-bot",
+  ["infra:vs:bot:undefined"]: "init-infra-vs-bot",
 };
 
 const workflowFileName = "app.yml";
@@ -119,10 +148,14 @@ const M365Actions = [
   "teamsApp/update",
   "aadApp/create",
   "aadApp/update",
-  "m365Bot/createOrUpdate",
+  "botFramework/createOrUpdateBot",
 ];
 const AzureActions = ["arm/deploy"];
-const needTenantCheckActions = ["botAadApp/create", "aadApp/create", "m365Bot/createOrUpdate"];
+const needTenantCheckActions = [
+  "botAadApp/create",
+  "aadApp/create",
+  "botFramework/createOrUpdateBot",
+];
 
 export class Coordinator {
   @hooks([
@@ -155,6 +188,11 @@ export class Coordinator {
         throw InvalidInputError(`invalid answer for '${CoreQuestionNames.Samples}'`, inputs);
       }
       projectPath = path.join(folder, sampleId);
+      let suffix = 1;
+      while ((await fs.pathExists(projectPath)) && (await fs.readdir(projectPath)).length > 0) {
+        projectPath = path.join(folder, `${sampleId}_${suffix++}`);
+      }
+
       inputs.projectPath = projectPath;
       await fs.ensureDir(projectPath);
 
@@ -228,13 +266,66 @@ export class Coordinator {
     return ok(projectPath);
   }
 
-  async initInfra(inputs: Inputs): Promise<Result<undefined, FxError>> {
+  @hooks([
+    ActionExecutionMW({
+      question: (context, inputs) => {
+        return getQuestionsForInit("infra", inputs);
+      },
+      enableTelemetry: true,
+      telemetryEventName: "init-infra",
+      telemetryComponentName: "coordinator",
+      errorSource: CoordinatorSource,
+    }),
+  ])
+  async initInfra(context: ContextV3, inputs: Inputs): Promise<Result<undefined, FxError>> {
+    if (inputs.proceed === InitOptionNo.id) return err(UserCancelError);
     const projectPath = inputs.projectPath;
     if (!projectPath) {
       return err(InvalidInputError("projectPath is undefined"));
     }
-    const context = createContextV3();
-    const res = await Generator.generateTemplate(context, projectPath, "init-infra", undefined);
+    const editor = inputs.editor;
+    const capability = inputs.capability;
+    const spfx = inputs.spfx;
+    if (!editor) return err(InvalidInputError("editor is undefined"));
+    if (!capability) return err(InvalidInputError("capability is undefined"));
+    const templateName = InitTemplateName[`infra:${editor}:${capability}:${spfx}`];
+    const res = await Generator.generateTemplate(context, projectPath, templateName, undefined);
+    if (res.isErr()) return err(res.error);
+    const ensureRes = await this.ensureTrackingId(inputs, projectPath);
+    if (ensureRes.isErr()) return err(ensureRes.error);
+    return ok(undefined);
+  }
+
+  @hooks([
+    ActionExecutionMW({
+      question: (context, inputs) => {
+        return getQuestionsForInit("debug", inputs);
+      },
+      enableTelemetry: true,
+      telemetryEventName: "init-debug",
+      telemetryComponentName: "coordinator",
+      errorSource: CoordinatorSource,
+    }),
+  ])
+  async initDebug(context: ContextV3, inputs: Inputs): Promise<Result<undefined, FxError>> {
+    if (inputs.proceed === InitOptionNo.id) return err(UserCancelError);
+    const projectPath = inputs.projectPath;
+    if (!projectPath) {
+      return err(InvalidInputError("projectPath is undefined"));
+    }
+    const editor = inputs.editor;
+    const capability = inputs.capability;
+    const spfx = inputs.spfx;
+    if (!editor) return err(InvalidInputError("editor is undefined"));
+    if (!capability) return err(InvalidInputError("capability is undefined"));
+    const templateName = InitTemplateName[`debug:${editor}:${capability}:${spfx}`];
+    if (editor === "vsc") {
+      const exists = await fs.pathExists(path.join(projectPath, ".vscode"));
+      if (exists) {
+        context.templateVariables = { dotVscodeFolderName: ".vscode-teamsfx" };
+      }
+    }
+    const res = await Generator.generateTemplate(context, projectPath, templateName, undefined);
     if (res.isErr()) return err(res.error);
     const ensureRes = await this.ensureTrackingId(inputs, projectPath);
     if (ensureRes.isErr()) return err(ensureRes.error);
@@ -246,7 +337,7 @@ export class Coordinator {
     const settingsRes = await settingsUtil.readSettings(projectPath);
     if (settingsRes.isErr()) return err(settingsRes.error);
     const settings = settingsRes.value;
-    settings.trackingId = inputs.projectId ? inputs.projectId : uuid.v4();
+    settings.trackingId = settings.trackingId || inputs.projectId || uuid.v4();
     inputs.projectId = settings.trackingId;
     await settingsUtil.writeSettings(projectPath, settings);
     return ok(undefined);
@@ -449,7 +540,7 @@ export class Coordinator {
     // 3. ensure RESOURCE_SUFFIX if containsAzure
     if (containsAzure) {
       if (!process.env.RESOURCE_SUFFIX) {
-        const suffix = process.env.RESOURCE_SUFFIX || Math.random().toString(36).slice(5);
+        const suffix = process.env.RESOURCE_SUFFIX || uuid.v4().slice(0, 8);
         process.env.RESOURCE_SUFFIX = suffix;
         output.RESOURCE_SUFFIX = suffix;
       }
@@ -594,7 +685,7 @@ export class Coordinator {
         } else if (reason.kind === "UnresolvedPlaceholders") {
           const placeholders = reason.unresolvedPlaceHolders?.join(",") || "";
           error = new UserError({
-            source: CoordinatorSource,
+            source: reason.failedDriver.uses,
             name: "UnresolvedPlaceholders",
             message: getDefaultString("core.error.unresolvedPlaceholders", placeholders),
             displayMessage: getLocalizedString("core.error.unresolvedPlaceholders", placeholders),
