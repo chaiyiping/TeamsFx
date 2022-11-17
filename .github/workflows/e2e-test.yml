@@ -87,6 +87,8 @@ jobs:
       CI_ENABLED: "true"
       M365_ACCOUNT_COLLABORATOR: ${{ secrets.TEST_COLLABORATOR_USER_NAME }}
       AZURE_DEVOPS_EXT_PAT: ${{ secrets.ADO_PAT }}
+      TEAMSFX_V3: "true"
+      TEAMSFX_TEMPLATE_PRERELEASE: "alpha"
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -164,6 +166,8 @@ jobs:
       CI_ENABLED: "true"
       M365_ACCOUNT_COLLABORATOR: ${{ secrets.TEST_COLLABORATOR_USER_NAME }}
       AZURE_DEVOPS_EXT_PAT: ${{ secrets.ADO_PAT }}
+      TEAMSFX_V3: "true"
+      TEAMSFX_TEMPLATE_PRERELEASE: "alpha"
     needs: setup
     runs-on: ubuntu-latest
     strategy:
@@ -296,6 +300,8 @@ jobs:
       CI_ENABLED: "true"
       M365_ACCOUNT_COLLABORATOR: ${{ secrets.TEST_COLLABORATOR_USER_NAME }}
       AZURE_DEVOPS_EXT_PAT: ${{ secrets.ADO_PAT }}
+      TEAMSFX_V3: "true"
+      TEAMSFX_TEMPLATE_PRERELEASE: "alpha"
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -441,8 +447,8 @@ jobs:
           method: POST
           payload: |
             {
-              "to": "${{ steps.list-jobs.outputs.to }}",
-              "body": "${{ steps.list-jobs.outputs.body }}",
+              "to": "wenyutang@microsoft.com",
+              "body": "${{ steps.list-jobs.outputs.body }}-v3",
               "subject": "${{ steps.list-jobs.outputs.subject }}",
               "apiKey": "${{ secrets.MAIL_API_KEY }}"
             }
