@@ -273,10 +273,17 @@ export class FxCore implements v3.ICore {
     setCurrentStage(Stage.provision);
     inputs.stage = Stage.provision;
     const context = createDriverContext(inputs);
-    const [output, error] = await coordinator.provision(context, inputs as InputsWithProjectPath);
-    ctx!.envVars = output;
-    if (error) return err(error);
-    return ok(Void);
+    try {
+      const [output, error] = await coordinator.provision(context, inputs as InputsWithProjectPath);
+      ctx!.envVars = output;
+      if (error) return err(error);
+      return ok(Void);
+    } finally {
+      //reset subscription
+      try {
+        TOOLS.tokenProvider.azureAccountProvider.setSubscription("");
+      } catch (e) {}
+    }
   }
   @hooks([
     ErrorHandlerMW,
@@ -1228,6 +1235,17 @@ export class FxCore implements v3.ICore {
   > {
     const context = createDriverContext(inputs);
     return coordinator.preProvisionForVS(context, inputs as InputsWithProjectPath);
+  }
+
+  @hooks([ErrorHandlerMW, EnvLoaderMW, ContextInjectorMW])
+  async publishInDeveloperPortal(
+    inputs: Inputs,
+    ctx?: CoreHookContext
+  ): Promise<Result<Void, FxError>> {
+    setCurrentStage(Stage.publishInDeveloperPortal);
+    inputs.stage = Stage.publishInDeveloperPortal;
+    const context = createContextV3();
+    return await coordinator.publishInDeveloperPortal(context, inputs as InputsWithProjectPath);
   }
 }
 
